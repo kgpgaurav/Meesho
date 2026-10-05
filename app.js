@@ -171,7 +171,10 @@ el('fileInput').addEventListener('change', e => {
   const file = e.target.files && e.target.files[0];
   if (!file) return;
   const img = new Image();
-  img.onload = () => scanner.useImage(img);
+  img.onload = () => {
+    scanner.useImage(img);
+    setTimeout(() => scanner.scan(), 250);
+  };
   img.src = URL.createObjectURL(file);
 });
 
