@@ -3,55 +3,78 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="theme-color" content="#f43397">
 <title>ShadeScan — Meesho ShadeMatch prototype</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="styles.css">
 </head>
 <body>
 <div class="shell">
   <header class="topbar">
-    <div class="logo">mee<span>sho</span></div>
-    <div class="wordmark">ShadeScan</div>
+    <span class="wordmark">meesho</span>
+    <span class="product">ShadeScan</span>
   </header>
 
-  <nav class="tabs" id="tabs">
+  <nav class="tabs" id="tabs" data-active="scan">
     <button data-tab="scan" aria-current="page">Shade scan</button>
     <button data-tab="tryon">Live try on</button>
+    <span class="indicator" aria-hidden="true"></span>
   </nav>
 
   <main>
     <section class="panel" id="panel-scan">
-      <div class="stage" id="scanStage">
+      <div class="stage" id="scanStage" data-mode="idle">
         <video id="scanVideo" playsinline muted></video>
-        <div class="still" hidden></div>
-        <div class="frameline" id="reticle"><i></i><i></i><i></i><i></i></div>
-        <div class="sweep" id="sweep"></div>
-        <div class="readout" id="readout"><span class="chipsw" id="readoutSwatch"></span><span id="readoutText">Ready</span></div>
+        <div class="plate" id="plate">
+          <canvas id="frameCanvas"></canvas>
+          <button class="pickarea" id="pickArea" aria-label="Tap the photo to read a colour"></button>
+          <div class="markers" id="markers"></div>
+        </div>
+        <div class="frameline"><i></i><i></i><i></i><i></i></div>
+        <div class="sweep"></div>
+        <div class="readout"><span class="chipsw" id="readoutSwatch"></span><span id="readoutText">Camera off</span></div>
+        <div class="placeholder">
+          <span class="plogo"></span>
+          <p>Start the camera, or load a photo</p>
+        </div>
       </div>
 
-      <p class="status" id="scanStatus">Start the camera, or scan a photo.</p>
-
-      <div class="actions">
-        <button class="primary" id="scanBtn">Scan</button>
-        <button class="ghost" id="cameraBtn">Start camera</button>
-        <button class="ghost" id="flipBtn">Flip</button>
+      <div class="toolbar">
+        <button class="primary" id="captureBtn">Capture</button>
+        <button class="ghost" id="retakeBtn" hidden>Retake</button>
+        <button class="ghost" id="cameraBtn">Camera</button>
+        <button class="ghost icon" id="flipBtn" title="Switch camera" aria-label="Switch camera">⟲</button>
         <label class="ghost file">Photo<input type="file" id="fileInput" accept="image/*"></label>
       </div>
 
-      <div class="result" id="result" hidden>
+      <p class="status" id="scanStatus">Capture a photo, then tap any point on it to read that colour.</p>
+
+      <section class="card" id="samples" hidden>
+        <div class="cardhead">
+          <h3>Sampled points</h3>
+          <button class="link" id="clearSamples">Clear all</button>
+        </div>
+        <div class="strip" id="sampleStrip"></div>
+        <p class="compare" id="compare" hidden></p>
+      </section>
+
+      <section class="card" id="result" hidden>
         <div class="resulthead">
-          <div class="bigswatch" id="bigSwatch"></div>
-          <div>
+          <canvas class="loupe" id="loupe" width="120" height="120"></canvas>
+          <div class="headtext">
             <div class="bighex" id="bigHex">#000000</div>
             <div class="confidence" id="confidence"></div>
           </div>
-          <button class="ghost small" id="toTryOn">Try it on</button>
+          <div class="headactions">
+            <button class="chipbtn" id="copyHex">Copy</button>
+            <button class="chipbtn solid" id="toTryOn">Try on</button>
+          </div>
         </div>
         <dl class="formats" id="formats"></dl>
         <div class="matches" id="matches"></div>
-      </div>
+      </section>
     </section>
 
     <section class="panel" id="panel-tryon" hidden>
@@ -61,17 +84,17 @@
         <div class="hint" id="tryHint">Camera off</div>
       </div>
 
-      <p class="status" id="tryStatus">The colour is painted onto your lips and lids, not onto a drawing.</p>
-
-      <div class="actions">
+      <div class="toolbar">
         <button class="primary" id="tryBtn">Start camera</button>
         <button class="ghost" id="stopTryBtn">Stop</button>
       </div>
 
-      <div class="region">
-        <div class="regionhead">
+      <p class="status" id="tryStatus">Colour is painted onto your own lips and lids, not onto a drawing.</p>
+
+      <section class="card">
+        <div class="cardhead">
           <label class="switch"><input type="checkbox" id="lipsOn" checked><span></span>Lip colour</label>
-          <div class="finishes" id="lipFinish">
+          <div class="segment" id="lipFinish">
             <button data-finish="Matte" aria-pressed="true">Matte</button>
             <button data-finish="Glossy">Glossy</button>
             <button data-finish="Sheer">Sheer</button>
@@ -79,19 +102,19 @@
         </div>
         <div class="swatches" id="lipSwatches"></div>
         <label class="slider">Intensity<input type="range" id="lipIntensity" min="20" max="100" value="68"></label>
-      </div>
+      </section>
 
-      <div class="region">
-        <div class="regionhead">
+      <section class="card">
+        <div class="cardhead">
           <label class="switch"><input type="checkbox" id="eyesOn"><span></span>Eye shadow</label>
-          <div class="finishes" id="eyeFinish">
+          <div class="segment" id="eyeFinish">
             <button data-finish="Matte" aria-pressed="true">Matte</button>
             <button data-finish="Shimmer">Shimmer</button>
           </div>
         </div>
         <div class="swatches" id="eyeSwatches"></div>
         <label class="slider">Intensity<input type="range" id="eyeIntensity" min="15" max="90" value="50"></label>
-      </div>
+      </section>
     </section>
   </main>
 
