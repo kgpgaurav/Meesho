@@ -1,0 +1,102 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>ShadeScan — Meesho ShadeMatch prototype</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="styles.css">
+</head>
+<body>
+<div class="shell">
+  <header class="topbar">
+    <div class="logo">mee<span>sho</span></div>
+    <div class="wordmark">ShadeScan</div>
+  </header>
+
+  <nav class="tabs" id="tabs">
+    <button data-tab="scan" aria-current="page">Shade scan</button>
+    <button data-tab="tryon">Live try on</button>
+  </nav>
+
+  <main>
+    <section class="panel" id="panel-scan">
+      <div class="stage" id="scanStage">
+        <video id="scanVideo" playsinline muted></video>
+        <div class="still" hidden></div>
+        <div class="frameline" id="reticle"><i></i><i></i><i></i><i></i></div>
+        <div class="sweep" id="sweep"></div>
+        <div class="readout" id="readout"><span class="chipsw" id="readoutSwatch"></span><span id="readoutText">Ready</span></div>
+      </div>
+
+      <p class="status" id="scanStatus">Start the camera, or scan a photo.</p>
+
+      <div class="actions">
+        <button class="primary" id="scanBtn">Scan</button>
+        <button class="ghost" id="cameraBtn">Start camera</button>
+        <button class="ghost" id="flipBtn">Flip</button>
+        <label class="ghost file">Photo<input type="file" id="fileInput" accept="image/*"></label>
+      </div>
+
+      <div class="result" id="result" hidden>
+        <div class="resulthead">
+          <div class="bigswatch" id="bigSwatch"></div>
+          <div>
+            <div class="bighex" id="bigHex">#000000</div>
+            <div class="confidence" id="confidence"></div>
+          </div>
+          <button class="ghost small" id="toTryOn">Try it on</button>
+        </div>
+        <dl class="formats" id="formats"></dl>
+        <div class="matches" id="matches"></div>
+      </div>
+    </section>
+
+    <section class="panel" id="panel-tryon" hidden>
+      <div class="stage faces" id="tryStage">
+        <video id="tryVideo" playsinline muted></video>
+        <canvas id="tryCanvas"></canvas>
+        <div class="hint" id="tryHint">Camera off</div>
+      </div>
+
+      <p class="status" id="tryStatus">The colour is painted onto your lips and lids, not onto a drawing.</p>
+
+      <div class="actions">
+        <button class="primary" id="tryBtn">Start camera</button>
+        <button class="ghost" id="stopTryBtn">Stop</button>
+      </div>
+
+      <div class="region">
+        <div class="regionhead">
+          <label class="switch"><input type="checkbox" id="lipsOn" checked><span></span>Lip colour</label>
+          <div class="finishes" id="lipFinish">
+            <button data-finish="Matte" aria-pressed="true">Matte</button>
+            <button data-finish="Glossy">Glossy</button>
+            <button data-finish="Sheer">Sheer</button>
+          </div>
+        </div>
+        <div class="swatches" id="lipSwatches"></div>
+        <label class="slider">Intensity<input type="range" id="lipIntensity" min="20" max="100" value="68"></label>
+      </div>
+
+      <div class="region">
+        <div class="regionhead">
+          <label class="switch"><input type="checkbox" id="eyesOn"><span></span>Eye shadow</label>
+          <div class="finishes" id="eyeFinish">
+            <button data-finish="Matte" aria-pressed="true">Matte</button>
+            <button data-finish="Shimmer">Shimmer</button>
+          </div>
+        </div>
+        <div class="swatches" id="eyeSwatches"></div>
+        <label class="slider">Intensity<input type="range" id="eyeIntensity" min="15" max="90" value="50"></label>
+      </div>
+    </section>
+  </main>
+
+  <footer class="foot">Digital swatches stay approximate. Colour shifts with lighting and application.</footer>
+</div>
+<script type="module" src="js/app.js"></script>
+</body>
+</html>

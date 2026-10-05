@@ -1,0 +1,1260 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>ShadeScan — Meesho ShadeMatch prototype</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+<style>
+:root {
+  --pink: #f43397;
+  --pink-deep: #9f1458;
+  --plum: #570d3f;
+  --ink: #1b1b1f;
+  --mid: #6d6d76;
+  --line: #e8e8ef;
+  --wash: #f6f6f9;
+  --ok: #0a8a4a;
+  --warn: #9a6200;
+  box-sizing: border-box;
+  padding-top: env(safe-area-inset-top, 0px);
+  padding-bottom: env(safe-area-inset-bottom, 0px);
+}
+*, *::before, *::after { box-sizing: inherit; }
+html, body { height: 100%; }
+html { scroll-padding-top: env(safe-area-inset-top, 0px); }
+
+body {
+  margin: 0;
+  font-family: Inter, system-ui, -apple-system, sans-serif;
+  background: #ece6ee;
+  color: var(--ink);
+  -webkit-font-smoothing: antialiased;
+}
+
+.shell {
+  max-width: 460px;
+  margin: 0 auto;
+  min-height: 100%;
+  background: #fff;
+  display: flex;
+  flex-direction: column;
+  box-shadow: 0 0 60px rgba(50, 10, 45, .14);
+}
+
+.topbar {
+  display: flex;
+  align-items: baseline;
+  gap: 10px;
+  padding: 14px 16px 10px;
+  border-bottom: 1px solid var(--line);
+}
+.logo { font-size: 21px; font-weight: 800; letter-spacing: -.04em; color: var(--pink); }
+.logo span { color: var(--plum); }
+.wordmark { font-size: 13px; font-weight: 700; color: var(--mid); letter-spacing: .02em; }
+
+.tabs { display: flex; border-bottom: 1px solid var(--line); }
+.tabs button {
+  flex: 1;
+  border: 0;
+  background: none;
+  font: inherit;
+  font-size: 13.5px;
+  font-weight: 600;
+  color: var(--mid);
+  padding: 12px 0;
+  cursor: pointer;
+  border-bottom: 2.5px solid transparent;
+}
+.tabs button[aria-current="page"] { color: var(--pink); border-bottom-color: var(--pink); }
+.tabs button:focus-visible, button:focus-visible, input:focus-visible { outline: 2px solid var(--pink); outline-offset: 2px; }
+
+main { flex: 1; }
+.panel { padding: 14px 14px 20px; }
+
+.stage {
+  position: relative;
+  aspect-ratio: 3 / 4;
+  border-radius: 14px;
+  overflow: hidden;
+  background: #17121b;
+}
+.stage video, .stage canvas, .stage .still {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+.stage .still { background-size: cover; background-position: center; }
+.stage.mirrored video, .stage.faces video, .stage.faces canvas { transform: scaleX(-1); }
+
+.frameline { position: absolute; left: 22%; top: 28%; width: 56%; height: 34%; }
+.frameline i { position: absolute; width: 26px; height: 26px; border: 3px solid rgba(255,255,255,.92); }
+.frameline i:nth-child(1) { top: 0; left: 0; border-right: 0; border-bottom: 0; border-radius: 7px 0 0 0; }
+.frameline i:nth-child(2) { top: 0; right: 0; border-left: 0; border-bottom: 0; border-radius: 0 7px 0 0; }
+.frameline i:nth-child(3) { bottom: 0; left: 0; border-right: 0; border-top: 0; border-radius: 0 0 0 7px; }
+.frameline i:nth-child(4) { bottom: 0; right: 0; border-left: 0; border-top: 0; border-radius: 0 0 7px 0; }
+
+.sweep {
+  position: absolute;
+  left: 22%;
+  width: 56%;
+  height: 3px;
+  top: 28%;
+  border-radius: 3px;
+  background: linear-gradient(90deg, rgba(244,51,151,0), #f43397 20%, #7b5cff 80%, rgba(123,92,255,0));
+  opacity: 0;
+}
+.stage.scanning .sweep {
+  opacity: 1;
+  animation: sweep var(--sweep-ms, 1300ms) ease-in-out infinite alternate;
+}
+@keyframes sweep { from { top: 28%; } to { top: 61%; } }
+@media (prefers-reduced-motion: reduce) {
+  .stage.scanning .sweep { animation: none; top: 45%; }
+}
+
+.readout {
+  position: absolute;
+  left: 10px;
+  bottom: 10px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  background: rgba(0, 0, 0, .62);
+  color: #fff;
+  border-radius: 8px;
+  padding: 8px 11px;
+  font-size: 13px;
+  font-weight: 700;
+  letter-spacing: .03em;
+  backdrop-filter: blur(4px);
+}
+.readout .chipsw { width: 17px; height: 17px; border-radius: 4px; border: 1px solid rgba(255,255,255,.65); background: #444; }
+.readout.working { color: #ffd9ec; }
+
+.hint {
+  position: absolute;
+  inset: auto 10px 10px;
+  text-align: center;
+  color: #fff;
+  font-size: 12px;
+  font-weight: 600;
+  background: rgba(0, 0, 0, .5);
+  border-radius: 8px;
+  padding: 8px;
+}
+.stage.faces.searching .hint::after { content: " — looking for a face"; }
+
+.status { font-size: 12px; color: var(--mid); line-height: 1.5; margin: 10px 2px 0; }
+.status.bad { color: var(--pink-deep); font-weight: 600; }
+
+.actions { display: flex; gap: 8px; margin-top: 12px; flex-wrap: wrap; }
+.actions button, .actions .file {
+  flex: 1;
+  min-width: 78px;
+  border: 0;
+  border-radius: 8px;
+  padding: 12px 10px;
+  font: inherit;
+  font-size: 13px;
+  font-weight: 700;
+  cursor: pointer;
+  text-align: center;
+}
+.actions .primary { background: var(--pink); color: #fff; }
+.actions .ghost { background: #fff; border: 1px solid var(--line); color: var(--ink); }
+.actions .ghost.small { flex: 0 0 auto; padding: 9px 12px; font-size: 12px; }
+.actions .file { position: relative; overflow: hidden; }
+.actions .file input { position: absolute; inset: 0; opacity: 0; cursor: pointer; }
+.actions button[disabled] { opacity: .45; cursor: default; }
+
+.result { margin-top: 16px; border: 1px solid var(--line); border-radius: 12px; overflow: hidden; }
+.resulthead { display: flex; align-items: center; gap: 12px; padding: 12px; background: var(--wash); }
+.bigswatch { width: 52px; height: 52px; border-radius: 10px; border: 1px solid rgba(0,0,0,.14); flex: 0 0 auto; }
+.bighex { font-size: 21px; font-weight: 800; letter-spacing: .02em; }
+.confidence { font-size: 11px; font-weight: 700; margin-top: 3px; }
+.confidence.high { color: var(--ok); }
+.confidence.medium { color: var(--warn); }
+.confidence.low { color: var(--pink-deep); }
+.resulthead .ghost { margin-left: auto; }
+
+.formats { margin: 0; display: grid; grid-template-columns: 1fr; }
+.formats .row { display: flex; gap: 12px; align-items: baseline; padding: 10px 12px; border-top: 1px solid var(--line); }
+.formats dt { font-size: 11px; color: var(--mid); font-weight: 600; width: 92px; flex: 0 0 auto; }
+.formats dd { margin: 0; font-size: 13px; font-weight: 600; }
+.formats dd small { display: block; font-size: 10.5px; font-weight: 500; color: var(--mid); margin-top: 3px; }
+
+.matches { border-top: 1px solid var(--line); padding: 12px; }
+.matches h3 { margin: 0 0 9px; font-size: 12px; font-weight: 700; color: var(--mid); }
+.match { display: flex; align-items: center; gap: 10px; width: 100%; text-align: left; border: 1px solid var(--line); border-radius: 9px; padding: 9px; background: #fff; margin-bottom: 7px; font: inherit; cursor: pointer; }
+.match .sw { width: 36px; height: 36px; border-radius: 7px; border: 1px solid rgba(0,0,0,.12); flex: 0 0 auto; }
+.match b { font-size: 12.5px; display: block; }
+.match span { font-size: 10.5px; color: var(--mid); display: block; margin-top: 2px; }
+.match .tag { font-size: 9.5px; font-weight: 700; border-radius: 3px; padding: 2px 5px; margin-top: 4px; display: inline-block; }
+.tag.close { background: #e7f6ed; color: var(--ok); }
+.tag.near { background: #fff3e0; color: var(--warn); }
+.tag.far { background: var(--wash); color: var(--mid); }
+.match .price { margin-left: auto; font-size: 13px; font-weight: 800; }
+
+.region { margin-top: 14px; border: 1px solid var(--line); border-radius: 12px; padding: 12px; }
+.regionhead { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
+.switch { display: flex; align-items: center; gap: 8px; font-size: 13px; font-weight: 700; cursor: pointer; }
+.switch input { position: absolute; opacity: 0; width: 0; height: 0; }
+.switch span { width: 36px; height: 21px; border-radius: 999px; background: #d4d4dd; position: relative; transition: background .16s; }
+.switch span::after { content: ""; position: absolute; top: 2.5px; left: 2.5px; width: 16px; height: 16px; border-radius: 50%; background: #fff; transition: transform .16s; }
+.switch input:checked + span { background: var(--pink); }
+.switch input:checked + span::after { transform: translateX(15px); }
+
+.finishes { display: flex; gap: 5px; margin-left: auto; }
+.finishes button { border: 1px solid var(--line); background: #fff; border-radius: 999px; padding: 6px 11px; font: inherit; font-size: 11.5px; font-weight: 600; color: var(--mid); cursor: pointer; }
+.finishes button[aria-pressed="true"] { border-color: var(--pink); background: #fff0f6; color: var(--pink-deep); }
+
+.swatches { display: flex; gap: 7px; overflow-x: auto; padding: 11px 0 3px; }
+.swatches button { flex: 0 0 auto; width: 38px; height: 38px; border-radius: 9px; border: 2px solid transparent; box-shadow: inset 0 0 0 1px rgba(0,0,0,.12); cursor: pointer; }
+.swatches button[aria-pressed="true"] { border-color: var(--plum); }
+.swatches button.scanned { box-shadow: inset 0 0 0 1px rgba(0,0,0,.12), 0 0 0 2px #ffd9ec; }
+
+.slider { display: flex; align-items: center; gap: 10px; font-size: 11.5px; font-weight: 600; color: var(--mid); margin-top: 6px; }
+.slider input { flex: 1; accent-color: var(--pink); }
+
+.foot { font-size: 10.5px; color: var(--mid); text-align: center; padding: 14px 18px 20px; line-height: 1.5; border-top: 1px solid var(--line); }
+
+@media (max-width: 480px) {
+  .shell { box-shadow: none; }
+}
+
+</style>
+</head>
+<body>
+<div class="shell">
+  <header class="topbar">
+    <div class="logo">mee<span>sho</span></div>
+    <div class="wordmark">ShadeScan</div>
+  </header>
+
+  <nav class="tabs" id="tabs">
+    <button data-tab="scan" aria-current="page">Shade scan</button>
+    <button data-tab="tryon">Live try on</button>
+  </nav>
+
+  <main>
+    <section class="panel" id="panel-scan">
+      <div class="stage" id="scanStage">
+        <video id="scanVideo" playsinline muted></video>
+        <div class="still" hidden></div>
+        <div class="frameline" id="reticle"><i></i><i></i><i></i><i></i></div>
+        <div class="sweep" id="sweep"></div>
+        <div class="readout" id="readout"><span class="chipsw" id="readoutSwatch"></span><span id="readoutText">Ready</span></div>
+      </div>
+
+      <p class="status" id="scanStatus">Start the camera, or scan a photo.</p>
+
+      <div class="actions">
+        <button class="primary" id="scanBtn">Scan</button>
+        <button class="ghost" id="cameraBtn">Start camera</button>
+        <button class="ghost" id="flipBtn">Flip</button>
+        <label class="ghost file">Photo<input type="file" id="fileInput" accept="image/*"></label>
+      </div>
+
+      <div class="result" id="result" hidden>
+        <div class="resulthead">
+          <div class="bigswatch" id="bigSwatch"></div>
+          <div>
+            <div class="bighex" id="bigHex">#000000</div>
+            <div class="confidence" id="confidence"></div>
+          </div>
+          <button class="ghost small" id="toTryOn">Try it on</button>
+        </div>
+        <dl class="formats" id="formats"></dl>
+        <div class="matches" id="matches"></div>
+      </div>
+    </section>
+
+    <section class="panel" id="panel-tryon" hidden>
+      <div class="stage faces" id="tryStage">
+        <video id="tryVideo" playsinline muted></video>
+        <canvas id="tryCanvas"></canvas>
+        <div class="hint" id="tryHint">Camera off</div>
+      </div>
+
+      <p class="status" id="tryStatus">The colour is painted onto your lips and lids, not onto a drawing.</p>
+
+      <div class="actions">
+        <button class="primary" id="tryBtn">Start camera</button>
+        <button class="ghost" id="stopTryBtn">Stop</button>
+      </div>
+
+      <div class="region">
+        <div class="regionhead">
+          <label class="switch"><input type="checkbox" id="lipsOn" checked><span></span>Lip colour</label>
+          <div class="finishes" id="lipFinish">
+            <button data-finish="Matte" aria-pressed="true">Matte</button>
+            <button data-finish="Glossy">Glossy</button>
+            <button data-finish="Sheer">Sheer</button>
+          </div>
+        </div>
+        <div class="swatches" id="lipSwatches"></div>
+        <label class="slider">Intensity<input type="range" id="lipIntensity" min="20" max="100" value="68"></label>
+      </div>
+
+      <div class="region">
+        <div class="regionhead">
+          <label class="switch"><input type="checkbox" id="eyesOn"><span></span>Eye shadow</label>
+          <div class="finishes" id="eyeFinish">
+            <button data-finish="Matte" aria-pressed="true">Matte</button>
+            <button data-finish="Shimmer">Shimmer</button>
+          </div>
+        </div>
+        <div class="swatches" id="eyeSwatches"></div>
+        <label class="slider">Intensity<input type="range" id="eyeIntensity" min="15" max="90" value="50"></label>
+      </div>
+    </section>
+  </main>
+
+  <footer class="foot">Digital swatches stay approximate. Colour shifts with lighting and application.</footer>
+</div>
+<script type="module">
+globalThis.SHADE_CATALOGUE = [{"id": "ML-1042", "shade": "Coffee Nude", "hex": "#7A4A3E", "family": "Nude & brown", "finish": "Matte", "coverage": "Full", "price": 199, "seller": "Glow Essentials"}, {"id": "ML-1043", "shade": "Caramel Nude", "hex": "#A8664C", "family": "Nude & brown", "finish": "Matte", "coverage": "Medium", "price": 189, "seller": "Rani Cosmetics"}, {"id": "ML-1044", "shade": "Chocolate Brown", "hex": "#5E3228", "family": "Nude & brown", "finish": "Matte", "coverage": "Full", "price": 209, "seller": "Glow Essentials"}, {"id": "ML-1045", "shade": "Toasted Almond", "hex": "#B07A61", "family": "Nude & brown", "finish": "Satin", "coverage": "Medium", "price": 179, "seller": "Urban Hues"}, {"id": "ML-1046", "shade": "Soft Mocha", "hex": "#96614E", "family": "Nude & brown", "finish": "Creme", "coverage": "Medium", "price": 199, "seller": "Shringar Beauty"}, {"id": "ML-1047", "shade": "Cocoa Rose", "hex": "#8C5450", "family": "Nude & brown", "finish": "Matte", "coverage": "Full", "price": 219, "seller": "Bellezza Retail"}, {"id": "ML-2051", "shade": "Muted Pink", "hex": "#C27A7F", "family": "Pink", "finish": "Matte", "coverage": "Medium", "price": 169, "seller": "Rani Cosmetics"}, {"id": "ML-2052", "shade": "Rose Blush", "hex": "#D08A90", "family": "Pink", "finish": "Satin", "coverage": "Sheer", "price": 159, "seller": "Urban Hues"}, {"id": "ML-2053", "shade": "Fuchsia Pop", "hex": "#C2185B", "family": "Pink", "finish": "Glossy", "coverage": "Full", "price": 229, "seller": "Bellezza Retail"}, {"id": "ML-2054", "shade": "Pink Brown Nude", "hex": "#A86F6A", "family": "Pink", "finish": "Matte", "coverage": "Medium", "price": 189, "seller": "Glow Essentials"}, {"id": "ML-2055", "shade": "Dusty Rose", "hex": "#B4737A", "family": "Pink", "finish": "Matte", "coverage": "Full", "price": 199, "seller": "Shringar Beauty"}, {"id": "ML-2056", "shade": "Baby Pink", "hex": "#E0A2A8", "family": "Pink", "finish": "Sheer", "coverage": "Light", "price": 149, "seller": "Urban Hues"}, {"id": "ML-3061", "shade": "Classic Red", "hex": "#C0202A", "family": "Red", "finish": "Matte", "coverage": "Full", "price": 249, "seller": "Bellezza Retail"}, {"id": "ML-3062", "shade": "Brick Red", "hex": "#9E3B2E", "family": "Red", "finish": "Matte", "coverage": "Full", "price": 219, "seller": "Glow Essentials"}, {"id": "ML-3063", "shade": "Cherry Gloss", "hex": "#B01C3A", "family": "Red", "finish": "Glossy", "coverage": "Medium", "price": 199, "seller": "Rani Cosmetics"}, {"id": "ML-3064", "shade": "Soft Scarlet", "hex": "#CB4A45", "family": "Red", "finish": "Satin", "coverage": "Medium", "price": 189, "seller": "Urban Hues"}, {"id": "ML-3065", "shade": "Wine Red", "hex": "#7B1E35", "family": "Red", "finish": "Matte", "coverage": "Full", "price": 239, "seller": "Shringar Beauty"}, {"id": "ML-3066", "shade": "Tomato Red", "hex": "#D1452F", "family": "Red", "finish": "Creme", "coverage": "Medium", "price": 179, "seller": "Rani Cosmetics"}, {"id": "ML-4071", "shade": "Deep Berry", "hex": "#6E2342", "family": "Berry & plum", "finish": "Matte", "coverage": "Full", "price": 229, "seller": "Bellezza Retail"}, {"id": "ML-4072", "shade": "Plum Wine", "hex": "#5A2440", "family": "Berry & plum", "finish": "Satin", "coverage": "Full", "price": 209, "seller": "Glow Essentials"}, {"id": "ML-4073", "shade": "Mauve Haze", "hex": "#9C6B81", "family": "Berry & plum", "finish": "Matte", "coverage": "Medium", "price": 189, "seller": "Urban Hues"}, {"id": "ML-4074", "shade": "Berry Nude", "hex": "#94526A", "family": "Berry & plum", "finish": "Creme", "coverage": "Medium", "price": 179, "seller": "Shringar Beauty"}, {"id": "ML-5081", "shade": "Coral Crush", "hex": "#E2694F", "family": "Coral & orange", "finish": "Creme", "coverage": "Medium", "price": 169, "seller": "Rani Cosmetics"}, {"id": "ML-5082", "shade": "Peach Nude", "hex": "#D99A7E", "family": "Coral & orange", "finish": "Sheer", "coverage": "Light", "price": 149, "seller": "Urban Hues"}, {"id": "ML-5083", "shade": "Burnt Orange", "hex": "#B8542F", "family": "Coral & orange", "finish": "Matte", "coverage": "Full", "price": 199, "seller": "Glow Essentials"}, {"id": "ML-5084", "shade": "Terracotta", "hex": "#A85C44", "family": "Coral & orange", "finish": "Matte", "coverage": "Medium", "price": 189, "seller": "Bellezza Retail"}, {"id": "ML-6091", "shade": "Rosewood", "hex": "#8E4A4E", "family": "Nude & brown", "finish": "Matte", "coverage": "Full", "price": 199, "seller": "Shringar Beauty"}, {"id": "ML-6092", "shade": "Nude Beige", "hex": "#C19A84", "family": "Nude & brown", "finish": "Satin", "coverage": "Light", "price": 159, "seller": "Urban Hues"}, {"id": "ES-7101", "shade": "Champagne", "hex": "#D9B48F", "family": "Eye · neutral", "finish": "Shimmer", "coverage": "Light", "price": 229, "seller": "Glow Essentials"}, {"id": "ES-7102", "shade": "Taupe Smoke", "hex": "#8A7466", "family": "Eye · neutral", "finish": "Matte", "coverage": "Medium", "price": 249, "seller": "Bellezza Retail"}, {"id": "ES-7103", "shade": "Copper Glow", "hex": "#B06A3B", "family": "Eye · warm", "finish": "Shimmer", "coverage": "Medium", "price": 239, "seller": "Rani Cosmetics"}, {"id": "ES-7104", "shade": "Plum Dusk", "hex": "#6B4360", "family": "Eye · cool", "finish": "Matte", "coverage": "Full", "price": 259, "seller": "Urban Hues"}, {"id": "ES-7105", "shade": "Olive Ash", "hex": "#6E6B4A", "family": "Eye · cool", "finish": "Matte", "coverage": "Medium", "price": 229, "seller": "Shringar Beauty"}, {"id": "ES-7106", "shade": "Rose Gold", "hex": "#C08974", "family": "Eye · warm", "finish": "Shimmer", "coverage": "Light", "price": 249, "seller": "Glow Essentials"}];
+
+function clamp(v, lo, hi) {
+  return v < lo ? lo : v > hi ? hi : v;
+}
+
+function rgbToHex(r, g, b) {
+  const h = v => clamp(Math.round(v), 0, 255).toString(16).padStart(2, '0');
+  return ('#' + h(r) + h(g) + h(b)).toUpperCase();
+}
+
+function hexToRgb(hex) {
+  const s = hex.trim().replace(/^#/, '');
+  const full = s.length === 3 ? s.split('').map(c => c + c).join('') : s;
+  if (!/^[0-9a-fA-F]{6}$/.test(full)) return null;
+  return {
+    r: parseInt(full.slice(0, 2), 16),
+    g: parseInt(full.slice(2, 4), 16),
+    b: parseInt(full.slice(4, 6), 16)
+  };
+}
+
+function toLinear(v) {
+  const c = v / 255;
+  return c <= 0.04045 ? c / 12.92 : Math.pow((c + 0.055) / 1.055, 2.4);
+}
+
+function fromLinear(v) {
+  const c = v <= 0.0031308 ? v * 12.92 : 1.055 * Math.pow(v, 1 / 2.4) - 0.055;
+  return clamp(Math.round(c * 255), 0, 255);
+}
+
+const WHITE = { x: 0.95047, y: 1, z: 1.08883 };
+
+function rgbToLab(r, g, b) {
+  const R = toLinear(r), G = toLinear(g), B = toLinear(b);
+  const x = (R * 0.4124564 + G * 0.3575761 + B * 0.1804375) / WHITE.x;
+  const y = (R * 0.2126729 + G * 0.7151522 + B * 0.0721750) / WHITE.y;
+  const z = (R * 0.0193339 + G * 0.1191920 + B * 0.9503041) / WHITE.z;
+  const f = v => v > 0.008856 ? Math.cbrt(v) : 7.787 * v + 16 / 116;
+  const fx = f(x), fy = f(y), fz = f(z);
+  return { L: 116 * fy - 16, a: 500 * (fx - fy), b: 200 * (fy - fz) };
+}
+
+function labToRgb(L, a, bb) {
+  const fy = (L + 16) / 116;
+  const fx = fy + a / 500;
+  const fz = fy - bb / 200;
+  const inv = v => {
+    const c = v * v * v;
+    return c > 0.008856 ? c : (v - 16 / 116) / 7.787;
+  };
+  const x = inv(fx) * WHITE.x, y = inv(fy) * WHITE.y, z = inv(fz) * WHITE.z;
+  const R = x * 3.2404542 + y * -1.5371385 + z * -0.4985314;
+  const G = x * -0.9692660 + y * 1.8760108 + z * 0.0415560;
+  const B = x * 0.0556434 + y * -0.2040259 + z * 1.0572252;
+  return { r: fromLinear(R), g: fromLinear(G), b: fromLinear(B) };
+}
+
+function rgbToHsl(r, g, b) {
+  const R = r / 255, G = g / 255, B = b / 255;
+  const max = Math.max(R, G, B), min = Math.min(R, G, B);
+  const l = (max + min) / 2;
+  let h = 0, s = 0;
+  if (max !== min) {
+    const d = max - min;
+    s = l > 0.5 ? d / (2 - max - min) : d / (max + min);
+    if (max === R) h = ((G - B) / d + (G < B ? 6 : 0));
+    else if (max === G) h = (B - R) / d + 2;
+    else h = (R - G) / d + 4;
+    h *= 60;
+  }
+  return { h: Math.round(h), s: Math.round(s * 100), l: Math.round(l * 100) };
+}
+
+function deltaE(p, q) {
+  return Math.sqrt((p.L - q.L) ** 2 + (p.a - q.a) ** 2 + (p.b - q.b) ** 2);
+}
+
+function chroma(lab) {
+  return Math.hypot(lab.a, lab.b);
+}
+
+function kmeans(points, k, iterations) {
+  if (points.length <= k) {
+    return points.map(p => ({ ...p, n: 1 }));
+  }
+  const sorted = points.slice().sort((p, q) => p.L - q.L);
+  const centroids = [];
+  for (let i = 0; i < k; i++) {
+    centroids.push({ ...sorted[Math.floor((i + 0.5) / k * sorted.length)] });
+  }
+  let assign = new Array(points.length).fill(0);
+  for (let it = 0; it < iterations; it++) {
+    let moved = false;
+    for (let i = 0; i < points.length; i++) {
+      let best = 0, bestD = Infinity;
+      for (let c = 0; c < centroids.length; c++) {
+        const d = deltaE(points[i], centroids[c]);
+        if (d < bestD) { bestD = d; best = c; }
+      }
+      if (assign[i] !== best) { assign[i] = best; moved = true; }
+    }
+    const sums = centroids.map(() => ({ L: 0, a: 0, b: 0, n: 0 }));
+    for (let i = 0; i < points.length; i++) {
+      const s = sums[assign[i]];
+      s.L += points[i].L; s.a += points[i].a; s.b += points[i].b; s.n++;
+    }
+    for (let c = 0; c < centroids.length; c++) {
+      if (sums[c].n) {
+        centroids[c] = { L: sums[c].L / sums[c].n, a: sums[c].a / sums[c].n, b: sums[c].b / sums[c].n };
+      }
+    }
+    if (!moved && it > 0) break;
+  }
+  const counts = centroids.map(() => 0);
+  const spread = centroids.map(() => 0);
+  for (let i = 0; i < points.length; i++) {
+    counts[assign[i]]++;
+    spread[assign[i]] += deltaE(points[i], centroids[assign[i]]);
+  }
+  return centroids.map((c, i) => ({
+    ...c,
+    n: counts[i],
+    spread: counts[i] ? spread[i] / counts[i] : 0
+  }));
+}
+
+function extractShade(pixels, width, height) {
+  const points = [];
+  const step = Math.max(1, Math.round(Math.sqrt((width * height) / 4000)));
+  for (let y = 0; y < height; y += step) {
+    for (let x = 0; x < width; x += step) {
+      const i = (y * width + x) * 4;
+      if (pixels[i + 3] < 200) continue;
+      points.push(rgbToLab(pixels[i], pixels[i + 1], pixels[i + 2]));
+    }
+  }
+  if (points.length < 40) return null;
+
+  const levels = points.map(p => p.L).sort((p, q) => p - q);
+  const lo = levels[Math.floor(levels.length * 0.12)];
+  const hi = levels[Math.floor(levels.length * 0.88)];
+  let kept = points.filter(p => p.L >= lo && p.L <= hi);
+  if (kept.length < 40) kept = points;
+
+  const clusters = kmeans(kept, 3, 14);
+  let best = null;
+  for (const c of clusters) {
+    if (!c.n) continue;
+    const ch = chroma(c);
+    if (c.L > 92 && ch < 8) continue;
+    if (c.L < 6) continue;
+    const share = c.n / kept.length;
+    const score = (ch + 7) * Math.pow(share, 0.55);
+    if (!best || score > best.score) best = { ...c, share, score, chromaValue: ch };
+  }
+  if (!best) return null;
+
+  const rgb = labToRgb(best.L, best.a, best.b);
+  const confidence = best.spread < 6.5 ? 'high' : best.spread < 13 ? 'medium' : 'low';
+  return {
+    lab: { L: best.L, a: best.a, b: best.b },
+    rgb,
+    hex: rgbToHex(rgb.r, rgb.g, rgb.b),
+    spread: best.spread,
+    share: best.share,
+    confidence
+  };
+}
+
+function averageShades(results) {
+  const valid = results.filter(Boolean);
+  if (!valid.length) return null;
+  const lab = valid.reduce((acc, r) => ({
+    L: acc.L + r.lab.L / valid.length,
+    a: acc.a + r.lab.a / valid.length,
+    b: acc.b + r.lab.b / valid.length
+  }), { L: 0, a: 0, b: 0 });
+  const rgb = labToRgb(lab.L, lab.a, lab.b);
+  const spread = valid.reduce((s, r) => s + r.spread, 0) / valid.length;
+  const drift = valid.reduce((s, r) => s + deltaE(r.lab, lab), 0) / valid.length;
+  const total = spread * 0.7 + drift * 1.3;
+  return {
+    lab,
+    rgb,
+    hex: rgbToHex(rgb.r, rgb.g, rgb.b),
+    spread,
+    drift,
+    share: valid.reduce((s, r) => s + r.share, 0) / valid.length,
+    confidence: total < 7 ? 'high' : total < 14 ? 'medium' : 'low'
+  };
+}
+
+
+let items = [];
+
+async function loadCatalogue(url = 'data/shades.json') {
+  let raw = globalThis.SHADE_CATALOGUE;
+  if (!raw) {
+    const res = await fetch(url);
+    if (!res.ok) throw new Error('Could not load ' + url);
+    raw = await res.json();
+  }
+  items = raw.map(entry => {
+    const rgb = hexToRgb(entry.hex);
+    return { ...entry, rgb, lab: rgbToLab(rgb.r, rgb.g, rgb.b) };
+  });
+  return items;
+}
+
+function allShades() {
+  return items;
+}
+
+function lipShades() {
+  return items.filter(s => !s.id.startsWith('ES-'));
+}
+
+function eyeShades() {
+  return items.filter(s => s.id.startsWith('ES-'));
+}
+
+function nearestShades(lab, count = 3, pool = items) {
+  return pool
+    .map(s => ({ shade: s, distance: deltaE(s.lab, lab) }))
+    .sort((a, b) => a.distance - b.distance)
+    .slice(0, count);
+}
+
+function matchQuality(distance) {
+  if (distance < 6) return { key: 'close', label: 'Close match' };
+  if (distance < 14) return { key: 'near', label: 'Visible difference' };
+  return { key: 'far', label: 'Clearly different' };
+}
+
+
+const registry = new Map();
+
+function registerFormat(key, definition) {
+  if (!definition || typeof definition.render !== 'function') {
+    throw new Error('Format "' + key + '" needs a render function');
+  }
+  registry.set(key, {
+    key,
+    label: definition.label || key,
+    order: typeof definition.order === 'number' ? definition.order : 100,
+    primary: definition.primary === true,
+    render: definition.render
+  });
+}
+
+function unregisterFormat(key) {
+  registry.delete(key);
+}
+
+function formatKeys() {
+  return [...registry.keys()];
+}
+
+function runFormats(reading) {
+  return [...registry.values()]
+    .sort((a, b) => a.order - b.order)
+    .map(f => {
+      let value, detail = null;
+      try {
+        const out = f.render(reading);
+        if (out && typeof out === 'object' && 'value' in out) {
+          value = out.value;
+          detail = out.detail || null;
+        } else {
+          value = out;
+        }
+      } catch (err) {
+        value = 'unavailable';
+      }
+      return { key: f.key, label: f.label, primary: f.primary, value, detail };
+    })
+    .filter(r => r.value !== null && r.value !== undefined);
+}
+
+registerFormat('hex', {
+  label: 'Hex',
+  order: 10,
+  primary: true,
+  render: reading => reading.hex
+});
+
+registerFormat('rgb', {
+  label: 'RGB',
+  order: 20,
+  render: reading => {
+    const { r, g, b } = reading.rgb;
+    return r + ', ' + g + ', ' + b;
+  }
+});
+
+registerFormat('hsl', {
+  label: 'HSL',
+  order: 30,
+  render: reading => {
+    const { r, g, b } = reading.rgb;
+    const { h, s, l } = rgbToHsl(r, g, b);
+    return h + '°, ' + s + '%, ' + l + '%';
+  }
+});
+
+registerFormat('lab', {
+  label: 'CIE Lab',
+  order: 40,
+  render: reading => {
+    const { L, a, b } = reading.lab;
+    return L.toFixed(1) + ', ' + a.toFixed(1) + ', ' + b.toFixed(1);
+  }
+});
+
+registerFormat('catalogue', {
+  label: 'Nearest shade',
+  order: 50,
+  render: reading => {
+    const hits = nearestShades(reading.lab, 1);
+    if (!hits.length) return null;
+    const { shade, distance } = hits[0];
+    return {
+      value: shade.shade + ' · ' + shade.id,
+      detail: shade.finish + ', ' + shade.coverage.toLowerCase() + ' coverage · ' +
+        matchQuality(distance).label + ' (ΔE ' + distance.toFixed(1) + ')'
+    };
+  }
+});
+
+
+const SAMPLE_FRAMES = 9;
+const SWEEP_MS = 1300;
+
+class Scanner {
+  constructor(options) {
+    this.video = options.video;
+    this.bar = options.bar;
+    this.readout = options.readout;
+    this.stage = options.stage;
+    this.reticle = options.reticle;
+    this.onResult = options.onResult || (() => {});
+    this.onStatus = options.onStatus || (() => {});
+    this.stream = null;
+    this.facing = 'environment';
+    this.busy = false;
+    this.canvas = document.createElement('canvas');
+    this.ctx = this.canvas.getContext('2d', { willReadFrequently: true });
+    this.stillImage = null;
+  }
+
+  async start(facing = this.facing) {
+    this.stop();
+    this.facing = facing;
+    if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
+      this.onStatus('nocamera', 'This browser cannot open a camera. Use a photo instead.');
+      return false;
+    }
+    try {
+      this.stream = await navigator.mediaDevices.getUserMedia({
+        video: { facingMode: { ideal: facing }, width: { ideal: 1280 }, height: { ideal: 960 } },
+        audio: false
+      });
+      this.stillImage = null;
+      this.video.srcObject = this.stream;
+      this.video.style.display = '';
+      await this.video.play();
+      this.stage.classList.toggle('mirrored', facing === 'user');
+      this.onStatus('live', 'Hold the product inside the frame and tap Scan.');
+      return true;
+    } catch (err) {
+      const denied = err && (err.name === 'NotAllowedError' || err.name === 'SecurityError');
+      this.onStatus(
+        denied ? 'denied' : 'nocamera',
+        denied
+          ? 'Camera permission was refused. Allow it in the address bar, or scan a photo instead.'
+          : 'No camera available here. Scan a photo instead.'
+      );
+      return false;
+    }
+  }
+
+  stop() {
+    if (this.stream) {
+      this.stream.getTracks().forEach(t => t.stop());
+      this.stream = null;
+    }
+  }
+
+  async flip() {
+    return this.start(this.facing === 'environment' ? 'user' : 'environment');
+  }
+
+  useImage(img) {
+    this.stop();
+    this.stillImage = img;
+    this.video.style.display = 'none';
+    this.stage.classList.remove('mirrored');
+    const holder = this.stage.querySelector('.still');
+    holder.style.backgroundImage = 'url(' + img.src + ')';
+    holder.hidden = false;
+    this.onStatus('still', 'Move the frame over the product colour and tap Scan.');
+  }
+
+  sourceSize() {
+    if (this.stillImage) return { w: this.stillImage.naturalWidth, h: this.stillImage.naturalHeight };
+    return { w: this.video.videoWidth, h: this.video.videoHeight };
+  }
+
+  captureRegion() {
+    const size = this.sourceSize();
+    if (!size.w || !size.h) return null;
+
+    const box = this.reticle.getBoundingClientRect();
+    const frame = this.stage.getBoundingClientRect();
+    const relX = (box.left - frame.left) / frame.width;
+    const relY = (box.top - frame.top) / frame.height;
+    const relW = box.width / frame.width;
+    const relH = box.height / frame.height;
+
+    const frameRatio = frame.width / frame.height;
+    const sourceRatio = size.w / size.h;
+    let visibleW = size.w, visibleH = size.h, offX = 0, offY = 0;
+    if (sourceRatio > frameRatio) {
+      visibleW = size.h * frameRatio;
+      offX = (size.w - visibleW) / 2;
+    } else {
+      visibleH = size.w / frameRatio;
+      offY = (size.h - visibleH) / 2;
+    }
+
+    const sx = offX + relX * visibleW;
+    const sy = offY + relY * visibleH;
+    const sw = relW * visibleW;
+    const sh = relH * visibleH;
+
+    const target = 180;
+    this.canvas.width = target;
+    this.canvas.height = Math.max(1, Math.round(target * (sh / sw)));
+    const source = this.stillImage || this.video;
+    this.ctx.drawImage(source, sx, sy, sw, sh, 0, 0, this.canvas.width, this.canvas.height);
+    return this.ctx.getImageData(0, 0, this.canvas.width, this.canvas.height);
+  }
+
+  readOnce() {
+    const data = this.captureRegion();
+    if (!data) return null;
+    return extractShade(data.data, data.width, data.height);
+  }
+
+  async scan() {
+    if (this.busy) return;
+    if (!this.stillImage && !this.stream) {
+      this.onStatus('nocamera', 'Start the camera or load a photo first.');
+      return;
+    }
+    this.busy = true;
+    this.stage.classList.add('scanning');
+    this.readout.textContent = 'Reading colour';
+    this.readout.classList.add('working');
+    this.bar.style.setProperty('--sweep-ms', SWEEP_MS + 'ms');
+
+    const samples = [];
+    const gap = Math.round(SWEEP_MS / SAMPLE_FRAMES);
+    for (let i = 0; i < SAMPLE_FRAMES; i++) {
+      await new Promise(r => setTimeout(r, gap));
+      const reading = this.readOnce();
+      if (reading) {
+        samples.push(reading);
+        this.readout.textContent = 'Reading colour ' + Math.round(((i + 1) / SAMPLE_FRAMES) * 100) + '%';
+      }
+    }
+
+    this.stage.classList.remove('scanning');
+    this.readout.classList.remove('working');
+    this.busy = false;
+
+    const result = averageShades(samples);
+    if (!result) {
+      this.readout.textContent = 'No colour found';
+      this.onStatus('failed', 'Nothing readable in the frame. Fill more of the box with the product.');
+      return;
+    }
+    this.readout.textContent = result.hex;
+    this.onResult(result);
+  }
+}
+
+const VISION_URL = 'https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@0.10.14';
+const WASM_URL = VISION_URL + '/wasm';
+const MODEL_URL = 'https://storage.googleapis.com/mediapipe-models/face_landmarker/face_landmarker/float16/1/face_landmarker.task';
+
+const LIP_OUTER = [61, 185, 40, 39, 37, 0, 267, 269, 270, 409, 291, 375, 321, 405, 314, 17, 84, 181, 91, 146];
+const LIP_INNER = [78, 191, 80, 81, 82, 13, 312, 311, 310, 415, 308, 324, 318, 402, 317, 14, 87, 178, 88, 95];
+const RIGHT_LID = [33, 246, 161, 160, 159, 158, 157, 173, 133];
+const RIGHT_BROW = [55, 65, 52, 53, 46];
+const LEFT_LID = [263, 466, 388, 387, 386, 385, 384, 398, 362];
+const LEFT_BROW = [285, 295, 282, 283, 276];
+const GLOSS_POINTS = [14, 17, 84, 314];
+
+class TryOn {
+  constructor(options) {
+    this.video = options.video;
+    this.canvas = options.canvas;
+    this.stage = options.stage;
+    this.onStatus = options.onStatus || (() => {});
+    this.ctx = this.canvas.getContext('2d');
+    this.layer = document.createElement('canvas');
+    this.layerCtx = this.layer.getContext('2d');
+    this.landmarker = null;
+    this.stream = null;
+    this.running = false;
+    this.lastTime = -1;
+    this.settings = {
+      lips: { on: true, hex: '#7A4A3E', finish: 'Matte', intensity: 0.68 },
+      eyes: { on: false, hex: '#8A7466', finish: 'Matte', intensity: 0.5 }
+    };
+  }
+
+  async load() {
+    if (this.landmarker) return true;
+    this.onStatus('loading', 'Loading the face model');
+    try {
+      const vision = await import(VISION_URL);
+      const fileset = await vision.FilesetResolver.forVisionTasks(WASM_URL);
+      this.landmarker = await vision.FaceLandmarker.createFromOptions(fileset, {
+        baseOptions: { modelAssetPath: MODEL_URL, delegate: 'GPU' },
+        runningMode: 'VIDEO',
+        numFaces: 1
+      });
+      return true;
+    } catch (err) {
+      this.onStatus('failed', 'The face model could not load. Check the connection and reload.');
+      return false;
+    }
+  }
+
+  async start() {
+    const ready = await this.load();
+    if (!ready) return false;
+    if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
+      this.onStatus('nocamera', 'This browser cannot open a camera.');
+      return false;
+    }
+    try {
+      this.stream = await navigator.mediaDevices.getUserMedia({
+        video: { facingMode: 'user', width: { ideal: 960 }, height: { ideal: 720 } },
+        audio: false
+      });
+      this.video.srcObject = this.stream;
+      await this.video.play();
+      this.canvas.width = this.video.videoWidth;
+      this.canvas.height = this.video.videoHeight;
+      this.layer.width = this.canvas.width;
+      this.layer.height = this.canvas.height;
+      this.running = true;
+      this.onStatus('live', 'Face your light source for the truest colour.');
+      requestAnimationFrame(() => this.loop());
+      return true;
+    } catch (err) {
+      this.onStatus('denied', 'Camera permission was refused.');
+      return false;
+    }
+  }
+
+  stop() {
+    this.running = false;
+    if (this.stream) {
+      this.stream.getTracks().forEach(t => t.stop());
+      this.stream = null;
+    }
+    this.ctx.clearRect(0, 0, this.canvas.width, this.canvas.height);
+  }
+
+  set(region, patch) {
+    Object.assign(this.settings[region], patch);
+  }
+
+  loop() {
+    if (!this.running) return;
+    const now = performance.now();
+    if (this.video.readyState >= 2 && this.video.currentTime !== this.lastTime) {
+      this.lastTime = this.video.currentTime;
+      let result = null;
+      try {
+        result = this.landmarker.detectForVideo(this.video, now);
+      } catch (err) {
+        result = null;
+      }
+      this.draw(result);
+    }
+    requestAnimationFrame(() => this.loop());
+  }
+
+  draw(result) {
+    const w = this.canvas.width, h = this.canvas.height;
+    this.ctx.clearRect(0, 0, w, h);
+    if (!result || !result.faceLandmarks || !result.faceLandmarks.length) {
+      this.stage.classList.add('searching');
+      return;
+    }
+    this.stage.classList.remove('searching');
+    const lm = result.faceLandmarks[0];
+
+    if (this.settings.eyes.on) this.paintEyes(lm, w, h);
+    if (this.settings.lips.on) this.paintLips(lm, w, h);
+  }
+
+  pathFrom(ctx, indices, lm, w, h, close) {
+    ctx.beginPath();
+    indices.forEach((idx, i) => {
+      const p = lm[idx];
+      const x = p.x * w, y = p.y * h;
+      if (i === 0) ctx.moveTo(x, y); else ctx.lineTo(x, y);
+    });
+    if (close !== false) ctx.closePath();
+  }
+
+  smoothPath(ctx, points, close) {
+    ctx.beginPath();
+    if (!points.length) return;
+    ctx.moveTo(points[0].x, points[0].y);
+    for (let i = 0; i < points.length; i++) {
+      const cur = points[i];
+      const next = points[(i + 1) % points.length];
+      ctx.quadraticCurveTo(cur.x, cur.y, (cur.x + next.x) / 2, (cur.y + next.y) / 2);
+    }
+    if (close !== false) ctx.closePath();
+  }
+
+  paintLips(lm, w, h) {
+    const cfg = this.settings.lips;
+    const lc = this.layerCtx;
+    lc.setTransform(1, 0, 0, 1, 0, 0);
+    lc.clearRect(0, 0, w, h);
+    lc.globalCompositeOperation = 'source-over';
+    lc.filter = 'blur(2.5px)';
+    lc.fillStyle = cfg.hex;
+    const outer = LIP_OUTER.map(i => ({ x: lm[i].x * w, y: lm[i].y * h }));
+    this.smoothPath(lc, outer);
+    lc.fill();
+    lc.globalCompositeOperation = 'destination-out';
+    lc.filter = 'blur(1.5px)';
+    const inner = LIP_INNER.map(i => ({ x: lm[i].x * w, y: lm[i].y * h }));
+    this.smoothPath(lc, inner);
+    lc.fill();
+    lc.filter = 'none';
+    lc.globalCompositeOperation = 'source-over';
+
+    const base = cfg.finish === 'Sheer' ? 0.62 : cfg.finish === 'Glossy' ? 0.82 : 1;
+    this.ctx.save();
+    this.ctx.globalCompositeOperation = 'multiply';
+    this.ctx.globalAlpha = Math.min(1, cfg.intensity * base);
+    this.ctx.drawImage(this.layer, 0, 0);
+    if (cfg.finish !== 'Sheer') {
+      this.ctx.globalCompositeOperation = 'source-over';
+      this.ctx.globalAlpha = Math.min(1, cfg.intensity * 0.3);
+      this.ctx.drawImage(this.layer, 0, 0);
+    }
+    this.ctx.restore();
+
+    if (cfg.finish === 'Glossy') this.paintGloss(lm, w, h, cfg.intensity);
+  }
+
+  paintGloss(lm, w, h, intensity) {
+    const pts = GLOSS_POINTS.map(i => ({ x: lm[i].x * w, y: lm[i].y * h }));
+    const cx = pts.reduce((s, p) => s + p.x, 0) / pts.length;
+    const cy = pts.reduce((s, p) => s + p.y, 0) / pts.length;
+    const span = Math.hypot(lm[61].x * w - lm[291].x * w, lm[61].y * h - lm[291].y * h);
+    const rx = span * 0.16, ry = span * 0.055;
+    this.ctx.save();
+    this.ctx.globalCompositeOperation = 'screen';
+    this.ctx.globalAlpha = Math.min(0.55, intensity * 0.5);
+    this.ctx.filter = 'blur(3px)';
+    this.ctx.fillStyle = '#ffffff';
+    this.ctx.beginPath();
+    this.ctx.ellipse(cx, cy + ry * 0.4, rx, ry, 0, 0, Math.PI * 2);
+    this.ctx.fill();
+    this.ctx.restore();
+  }
+
+  lidPolygon(lm, lid, brow, w, h, lift) {
+    const lidPts = lid.map(i => ({ x: lm[i].x * w, y: lm[i].y * h }));
+    const inner = lidPts[0], outer = lidPts[lidPts.length - 1];
+    const browPts = brow.map(i => {
+      const b = lm[i];
+      const bx = b.x * w, by = b.y * h;
+      const ref = Math.abs(bx - inner.x) < Math.abs(bx - outer.x) ? inner : outer;
+      return { x: bx + (ref.x - bx) * (1 - lift), y: by + (ref.y - by) * (1 - lift) };
+    });
+    return lidPts.concat(browPts);
+  }
+
+  paintEyes(lm, w, h) {
+    const cfg = this.settings.eyes;
+    const lc = this.layerCtx;
+    lc.setTransform(1, 0, 0, 1, 0, 0);
+    lc.clearRect(0, 0, w, h);
+    lc.globalCompositeOperation = 'source-over';
+    const eyeSpan = Math.hypot(lm[33].x * w - lm[263].x * w, lm[33].y * h - lm[263].y * h);
+    lc.filter = 'blur(' + Math.max(4, eyeSpan * 0.035).toFixed(1) + 'px)';
+    lc.fillStyle = cfg.hex;
+    [[RIGHT_LID, RIGHT_BROW], [LEFT_LID, LEFT_BROW]].forEach(([lid, brow]) => {
+      const poly = this.lidPolygon(lm, lid, brow, w, h, 0.55);
+      this.smoothPath(lc, poly);
+      lc.fill();
+    });
+    lc.filter = 'none';
+
+    this.ctx.save();
+    this.ctx.globalCompositeOperation = 'multiply';
+    this.ctx.globalAlpha = Math.min(1, cfg.intensity);
+    this.ctx.drawImage(this.layer, 0, 0);
+    if (cfg.finish === 'Shimmer') {
+      this.ctx.globalCompositeOperation = 'screen';
+      this.ctx.globalAlpha = Math.min(0.4, cfg.intensity * 0.35);
+      this.ctx.drawImage(this.layer, 0, 0);
+    }
+    this.ctx.restore();
+  }
+}
+
+
+const el = id => document.getElementById(id);
+
+const scanStage = el('scanStage');
+const scanner = new Scanner({
+  video: el('scanVideo'),
+  bar: el('sweep'),
+  readout: el('readoutText'),
+  stage: scanStage,
+  reticle: el('reticle'),
+  onResult: showResult,
+  onStatus: (kind, message) => setStatus(el('scanStatus'), kind, message)
+});
+
+const tryOn = new TryOn({
+  video: el('tryVideo'),
+  canvas: el('tryCanvas'),
+  stage: el('tryStage'),
+  onStatus: (kind, message) => {
+    setStatus(el('tryStatus'), kind, message);
+    el('tryHint').textContent = kind === 'live' ? 'Tracking' : message;
+    el('tryHint').hidden = kind === 'live';
+  }
+});
+
+let lastReading = null;
+
+function setStatus(node, kind, message) {
+  node.textContent = message;
+  node.classList.toggle('bad', kind === 'denied' || kind === 'failed' || kind === 'nocamera');
+}
+
+function showResult(reading) {
+  lastReading = reading;
+  el('result').hidden = false;
+  el('bigSwatch').style.background = reading.hex;
+  el('bigHex').textContent = reading.hex;
+  el('readoutSwatch').style.background = reading.hex;
+
+  const conf = el('confidence');
+  conf.className = 'confidence ' + reading.confidence;
+  conf.textContent = {
+    high: 'High confidence reading',
+    medium: 'Medium confidence — steady the frame for a cleaner read',
+    low: 'Low confidence — move to even light and fill the frame'
+  }[reading.confidence];
+
+  const list = el('formats');
+  list.innerHTML = '';
+  runFormats(reading).forEach(f => {
+    const row = document.createElement('div');
+    row.className = 'row';
+    const dt = document.createElement('dt');
+    dt.textContent = f.label;
+    const dd = document.createElement('dd');
+    dd.textContent = f.value;
+    if (f.detail) {
+      const small = document.createElement('small');
+      small.textContent = f.detail;
+      dd.appendChild(small);
+    }
+    row.append(dt, dd);
+    list.appendChild(row);
+  });
+
+  const matches = el('matches');
+  matches.innerHTML = '<h3>Closest shades in the catalogue</h3>';
+  nearestShades(reading.lab, 3).forEach(({ shade, distance }) => {
+    const q = matchQuality(distance);
+    const btn = document.createElement('button');
+    btn.className = 'match';
+    btn.innerHTML =
+      '<span class="sw" style="background:' + shade.hex + '"></span>' +
+      '<span><b>' + shade.shade + ' · ' + shade.id + '</b>' +
+      '<span>' + shade.finish + ', ' + shade.coverage.toLowerCase() + ' coverage · ' + shade.seller + '</span>' +
+      '<span class="tag ' + q.key + '">' + q.label + ' (ΔE ' + distance.toFixed(1) + ')</span></span>' +
+      '<span class="price">₹' + shade.price + '</span>';
+    btn.addEventListener('click', () => {
+      const region = shade.id.startsWith('ES-') ? 'eyes' : 'lips';
+      applyColour(region, shade.hex, shade.finish);
+      switchTab('tryon');
+    });
+    matches.appendChild(btn);
+  });
+
+  paintScannedSwatch();
+}
+
+function paintScannedSwatch() {
+  ['lipSwatches', 'eyeSwatches'].forEach(id => {
+    const holder = el(id);
+    const existing = holder.querySelector('.scanned');
+    if (!lastReading) return;
+    if (existing) {
+      existing.style.background = lastReading.hex;
+      existing.title = 'Scanned ' + lastReading.hex;
+      return;
+    }
+    const btn = document.createElement('button');
+    btn.className = 'scanned';
+    btn.style.background = lastReading.hex;
+    btn.title = 'Scanned ' + lastReading.hex;
+    btn.addEventListener('click', () => {
+      applyColour(id === 'lipSwatches' ? 'lips' : 'eyes', lastReading.hex);
+    });
+    holder.prepend(btn);
+  });
+}
+
+function applyColour(region, hex, finish) {
+  tryOn.set(region, finish ? { hex, finish } : { hex });
+  const holder = el(region === 'lips' ? 'lipSwatches' : 'eyeSwatches');
+  [...holder.children].forEach(b => {
+    b.setAttribute('aria-pressed', String(b.dataset.hex === hex || (b.classList.contains('scanned') && lastReading && lastReading.hex === hex)));
+  });
+  if (finish) {
+    const group = el(region === 'lips' ? 'lipFinish' : 'eyeFinish');
+    [...group.children].forEach(b => b.setAttribute('aria-pressed', String(b.dataset.finish === finish)));
+  }
+  const toggle = el(region === 'lips' ? 'lipsOn' : 'eyesOn');
+  if (!toggle.checked) {
+    toggle.checked = true;
+    tryOn.set(region, { on: true });
+  }
+}
+
+function buildSwatches(holderId, shades, region) {
+  const holder = el(holderId);
+  shades.forEach((s, i) => {
+    const btn = document.createElement('button');
+    btn.style.background = s.hex;
+    btn.dataset.hex = s.hex;
+    btn.title = s.shade + ' · ' + s.id;
+    btn.setAttribute('aria-pressed', String(i === 0));
+    btn.addEventListener('click', () => applyColour(region, s.hex, s.finish));
+    holder.appendChild(btn);
+  });
+  if (shades.length) tryOn.set(region, { hex: shades[0].hex });
+}
+
+function switchTab(name) {
+  [...el('tabs').children].forEach(b => {
+    const on = b.dataset.tab === name;
+    b.setAttribute('aria-current', on ? 'page' : 'false');
+  });
+  el('panel-scan').hidden = name !== 'scan';
+  el('panel-tryon').hidden = name !== 'tryon';
+  if (name !== 'tryon') tryOn.stop();
+}
+
+el('tabs').addEventListener('click', e => {
+  const btn = e.target.closest('[data-tab]');
+  if (btn) switchTab(btn.dataset.tab);
+});
+
+el('cameraBtn').addEventListener('click', async () => {
+  el('scanStage').querySelector('.still').hidden = true;
+  const ok = await scanner.start();
+  el('cameraBtn').textContent = ok ? 'Restart camera' : 'Start camera';
+});
+
+el('flipBtn').addEventListener('click', () => scanner.flip());
+el('scanBtn').addEventListener('click', () => scanner.scan());
+
+el('fileInput').addEventListener('change', e => {
+  const file = e.target.files && e.target.files[0];
+  if (!file) return;
+  const img = new Image();
+  img.onload = () => scanner.useImage(img);
+  img.src = URL.createObjectURL(file);
+});
+
+el('tryBtn').addEventListener('click', async () => {
+  el('tryBtn').disabled = true;
+  el('tryBtn').textContent = 'Starting';
+  const ok = await tryOn.start();
+  el('tryBtn').disabled = false;
+  el('tryBtn').textContent = ok ? 'Restart camera' : 'Start camera';
+});
+
+el('stopTryBtn').addEventListener('click', () => {
+  tryOn.stop();
+  el('tryHint').hidden = false;
+  el('tryHint').textContent = 'Camera off';
+});
+
+el('toTryOn').addEventListener('click', () => {
+  if (lastReading) applyColour('lips', lastReading.hex);
+  switchTab('tryon');
+});
+
+el('lipsOn').addEventListener('change', e => tryOn.set('lips', { on: e.target.checked }));
+el('eyesOn').addEventListener('change', e => tryOn.set('eyes', { on: e.target.checked }));
+el('lipIntensity').addEventListener('input', e => tryOn.set('lips', { intensity: e.target.value / 100 }));
+el('eyeIntensity').addEventListener('input', e => tryOn.set('eyes', { intensity: e.target.value / 100 }));
+
+[['lipFinish', 'lips'], ['eyeFinish', 'eyes']].forEach(([id, region]) => {
+  el(id).addEventListener('click', e => {
+    const btn = e.target.closest('[data-finish]');
+    if (!btn) return;
+    [...el(id).children].forEach(b => b.setAttribute('aria-pressed', String(b === btn)));
+    tryOn.set(region, { finish: btn.dataset.finish });
+  });
+});
+
+loadCatalogue()
+  .then(() => {
+    buildSwatches('lipSwatches', lipShades(), 'lips');
+    buildSwatches('eyeSwatches', eyeShades(), 'eyes');
+  })
+  .catch(() => {
+    setStatus(el('scanStatus'), 'failed', 'Open this through a web server, not as a file. See the README.');
+  });
+
+</script>
+</body>
+</html>
