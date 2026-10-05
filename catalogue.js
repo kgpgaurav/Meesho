@@ -2,7 +2,7 @@ import { hexToRgb, rgbToLab, deltaE } from './color.js';
 
 let items = [];
 
-export async function loadCatalogue(url = 'data/shades.json') {
+export async function loadCatalogue(url = 'shades.json') {
   let raw = globalThis.SHADE_CATALOGUE;
   if (!raw) {
     const res = await fetch(url);
