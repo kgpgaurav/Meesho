@@ -2,12 +2,23 @@ import { hexToRgb, rgbToLab, deltaE } from './color.js';
 
 let items = [];
 
-export async function loadCatalogue(url = 'shades.json') {
+const CATALOGUE_PATHS = ['shades.json', 'data/shades.json'];
+
+export async function loadCatalogue(paths = CATALOGUE_PATHS) {
   let raw = globalThis.SHADE_CATALOGUE;
   if (!raw) {
-    const res = await fetch(url);
-    if (!res.ok) throw new Error('Could not load ' + url);
-    raw = await res.json();
+    const candidates = Array.isArray(paths) ? paths : [paths];
+    for (const path of candidates) {
+      try {
+        const res = await fetch(path);
+        if (!res.ok) continue;
+        raw = await res.json();
+        break;
+      } catch (err) {
+        continue;
+      }
+    }
+    if (!raw) throw new Error('No shade catalogue found at ' + candidates.join(' or '));
   }
   items = raw.map(entry => {
     const rgb = hexToRgb(entry.hex);
