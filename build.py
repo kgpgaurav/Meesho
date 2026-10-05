@@ -29,16 +29,16 @@ def strip_module_syntax(source):
 def main():
     css = (ROOT / "styles.css").read_text()
     html = (ROOT / "index.html").read_text()
-    shades = json.loads((ROOT / "data" / "shades.json").read_text())
+    shades = json.loads((ROOT / "shades.json").read_text())
 
     bundle = ["globalThis.SHADE_CATALOGUE = " + json.dumps(shades, ensure_ascii=False) + ";"]
     for name in ORDER:
-        bundle.append(strip_module_syntax((ROOT / "js" / name).read_text()))
+        bundle.append(strip_module_syntax((ROOT / name).read_text()))
     script = "\n\n".join(bundle)
 
     html = html.replace('<link rel="stylesheet" href="styles.css">', "<style>\n" + css + "\n</style>")
     html = html.replace(
-        '<script type="module" src="js/app.js"></script>',
+        '<script type="module" src="app.js"></script>',
         '<script type="module">\n' + script + "\n</script>",
     )
 
