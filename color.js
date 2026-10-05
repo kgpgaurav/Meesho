@@ -142,7 +142,31 @@ export function extractShade(pixels, width, height) {
   let kept = points.filter(p => p.L >= lo && p.L <= hi);
   if (kept.length < 40) kept = points;
 
-  const clusters = kmeans(kept, 3, 14);
+  const clusters = kmeans(kept, 3, 14).filter(c => c.n);
+  let separation = 0;
+  for (let i = 0; i < clusters.length; i++) {
+    for (let j = i + 1; j < clusters.length; j++) {
+      separation = Math.max(separation, deltaE(clusters[i], clusters[j]));
+    }
+  }
+  if (separation < 9) {
+    const mean = kept.reduce((acc, p) => ({
+      L: acc.L + p.L / kept.length,
+      a: acc.a + p.a / kept.length,
+      b: acc.b + p.b / kept.length
+    }), { L: 0, a: 0, b: 0 });
+    const spread = kept.reduce((s, p) => s + deltaE(p, mean), 0) / kept.length;
+    const flat = labToRgb(mean.L, mean.a, mean.b);
+    return {
+      lab: mean,
+      rgb: flat,
+      hex: rgbToHex(flat.r, flat.g, flat.b),
+      spread,
+      share: 1,
+      confidence: spread < 6.5 ? 'high' : spread < 13 ? 'medium' : 'low'
+    };
+  }
+
   let best = null;
   for (const c of clusters) {
     if (!c.n) continue;
