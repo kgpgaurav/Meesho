@@ -1,3 +1,5 @@
+# Live link 
+https://kgpgaurav.github.io/Meesho/
 # ShadeScan
 
 A working prototype for Meesho ShadeMatch. It reads the colour of a real product through the
